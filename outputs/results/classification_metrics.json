@@ -1,0 +1,79 @@
+{
+    "Naive Bayes": {
+        "base": {
+            "accuracy": 0.5099337748344371,
+            "precision": 0.5021635569129234,
+            "recall": 0.5097510177033039,
+            "f1_macro": 0.44507013728683015
+        },
+        "tuned": {
+            "accuracy": 0.5099337748344371,
+            "precision": 0.5021635569129234,
+            "recall": 0.5097510177033039,
+            "f1_macro": 0.44507013728683015
+        },
+        "best_params": {
+            "var_smoothing": 1e-09
+        }
+    },
+    "k-NN": {
+        "base": {
+            "accuracy": 0.6847682119205298,
+            "precision": 0.6810218255526724,
+            "recall": 0.6847723184701316,
+            "f1_macro": 0.6821952850900276
+        },
+        "tuned": {
+            "accuracy": 0.7033112582781457,
+            "precision": 0.702641623646179,
+            "recall": 0.7033250234045463,
+            "f1_macro": 0.7029181720304836
+        },
+        "best_params": {
+            "metric": "manhattan",
+            "n_neighbors": 7,
+            "weights": "distance"
+        }
+    },
+    "MLP Classifier": {
+        "base": {
+            "accuracy": 0.6701986754966888,
+            "precision": 0.6643909396382307,
+            "recall": 0.6701852377796712,
+            "f1_macro": 0.6654740460941001
+        },
+        "tuned": {
+            "accuracy": 0.6735099337748345,
+            "precision": 0.6740650847229707,
+            "recall": 0.673540765986094,
+            "f1_macro": 0.6732612244549313
+        },
+        "best_params": {
+            "alpha": 0.0001,
+            "hidden_layer_sizes": [
+                50,
+                50
+            ],
+            "learning_rate_init": 0.01
+        }
+    },
+    "Bagging MLP": {
+        "base": {
+            "accuracy": 0.6768211920529801,
+            "precision": 0.671122549224739,
+            "recall": 0.6767911052205288,
+            "f1_macro": 0.6709017505221309
+        },
+        "tuned": {
+            "accuracy": 0.676158940397351,
+            "precision": 0.6706559889134036,
+            "recall": 0.6761310444213029,
+            "f1_macro": 0.6705978849976676
+        },
+        "best_params": {
+            "max_features": 1.0,
+            "max_samples": 0.9,
+            "n_estimators": 10
+        }
+    }
+}

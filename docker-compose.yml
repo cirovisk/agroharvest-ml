@@ -1,0 +1,13 @@
+services:
+  ml-experiments:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mapear o diretório de ML
+      - .:/app
+      # Mapear o repositório de dados para manter caminhos absolutos iguais
+      - /home/demonduck/Projects/Pessoais/portfolio/cultivares-duckdb:/home/demonduck/Projects/Pessoais/portfolio/cultivares-duckdb
+    user: "1000:1000"
+    environment:
+      - PYTHONUNBUFFERED=1

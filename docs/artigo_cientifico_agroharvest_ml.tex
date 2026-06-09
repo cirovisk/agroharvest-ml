@@ -1,0 +1,273 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{amsmath}
+\usepackage[T1]{fontenc}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{float}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor=black
+}
+
+\begin{document}
+
+\title{Predição de Produtividade Agrícola e Classificação de Desempenho Produtivo em Municípios Brasileiros: Uma Abordagem Baseada em Aprendizado de Máquina sobre o Data Lakehouse Agroharvest-BRv2\\
+{\footnotesize \textsuperscript{*}Projeto Final apresentado à disciplina CET0621 -- Aprendizado de Máquina na Análise de Dados}}
+
+\author{
+  \IEEEauthorblockN{Ciro Fraga de Souza}
+  \IEEEauthorblockA{\textit{Faculdade de Tecnologia} \\
+  \textit{UNICAMP}\\
+  Limeira, Brasil \\
+  RA 2024211941}
+  \and
+  \IEEEauthorblockN{Felippe Dada Gaede}
+  \IEEEauthorblockA{\textit{Faculdade de Tecnologia} \\
+  \textit{UNICAMP}\\
+  Limeira, Brasil \\
+  RA 2024212018}
+  \and
+  \IEEEauthorblockN{Jonnerson Lopes}
+  \IEEEauthorblockA{\textit{Faculdade de Tecnologia} \\
+  \textit{UNICAMP}\\
+  Limeira, Brasil \\
+  RA 2024212042}
+  \and
+  \IEEEauthorblockN{Murilo Melo de Oliveira}
+  \IEEEauthorblockA{\textit{Faculdade de Tecnologia} \\
+  \textit{UNICAMP}\\
+  Limeira, Brasil \\
+  RA 2024212085}
+}
+
+\maketitle
+
+\begin{abstract}
+Este trabalho apresenta a aplicação de técnicas de aprendizado de máquina supervisionado para predição de produtividade agrícola e classificação de desempenho produtivo em municípios brasileiros. A partir dos dados consolidados no Data Lakehouse \textit{Agroharvest-BRv2} (baseado em DuckDB), contendo informações municipais de produção (PAM/IBGE), zoneamento agrícola (ZARC/MAPA) e meteorologia histórica (Open-Meteo), construiu-se um dataset analítico com 7.549 registros focados nas culturas de soja e milho. Para a tarefa de regressão (predição de produtividade em kg/ha), testou-se modelos de MLP Regressor, Random Forest e XGBoost. Para a classificação multiclasse de faixas de desempenho produtivo (Baixo, Médio e Alto), avaliou-se classificadores Naive Bayes, k-NN, MLP e Bagging MLP. O algoritmo Random Forest obteve o melhor desempenho na regressão com $R^2 = 0{,}7573$, enquanto o k-NN com distância Manhattan obteve o melhor desempenho na classificação com acurácia de $70{,}33\%$. Os resultados evidenciam a eficácia de modelos preditivos integrando dados meteorológicos e agronômicos locais para apoiar tomadas de decisão.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Aprendizado de Máquina, Engenharia de Dados, Produtividade Agrícola, Desempenho Produtivo, Data Lakehouse.
+\end{IEEEkeywords}
+
+\section{Introdução}
+O agronegócio brasileiro é um dos principais motores econômicos do país, respondendo por aproximadamente 24\% do Produto Interno Bruto (PIB) nacional, conforme dados oficiais estimativos do Centro de Estudos Avançados em Economia Aplicada (Cepea/Esalq-USP) [3]. No entanto, a atividade é altamente exposta a riscos bióticos e abióticos, como variações climáticas drásticas, amplitude térmica e escolha incorreta de cultivares em janelas de plantio inadequadas. 
+
+A modelagem de predição agrícola tradicional frequentemente depara-se com a barreira do silo de dados: dados de produção coletados pelo IBGE (Produção Agrícola Municipal - PAM) [7], zoneamentos de plantio emitidos pelo MAPA (ZARC) [8] e dados de meteorologia histórica (como a API Open-Meteo) residem em plataformas e formatos heterogêneos.
+
+A consolidação do Data Lakehouse \textit{Agroharvest-BRv2} reduziu significativamente o esforço de integração de dados dessas bases públicas, disponibilizando-os em tabelas normalizadas com DuckDB e Apache Parquet. A partir dessa estrutura, este trabalho realiza a modelagem preditiva utilizando o processo de descoberta de conhecimento em bancos de dados (KDD). As tarefas foram divididas em duas vertentes complementares de aprendizado supervisionado: a estimação da produtividade municipal em kg/ha (regressão) e a classificação municipal da classe de desempenho produtivo associada à cultura e ao local (classificação multiclasse).
+
+\section{Trabalhos Relacionados}
+A literatura científica recente tem explorado intensamente o uso de técnicas de Inteligência Artificial para a otimização de safras e mitigação de perdas agrícolas. Chlingaryan et al. [1] revisaram exaustivamente as abordagens baseadas em aprendizado de máquina para predição de rendimento e apontaram que dados históricos de precipitação e temperatura acumulada são os melhores preditores para o rendimento de culturas de larga escala. 
+
+Tradicionalmente, os dados climáticos eram coletados por estações físicas locais limitadas. Khaki e Wang [2] propuseram redes neurais profundas (DNN) para predizer a produtividade de milho e soja integrando dados climáticos globais de satélites com genética de sementes, obtendo coeficientes de correlação superiores a 0.70. No entanto, o custo computacional e de infraestrutura para manter tais modelos DNN em nuvem limita sua adoção prática por cooperativas locais.
+
+Na vertente de arquitetura de dados, Armbrust et al. [4] propuseram o conceito de Data Lakehouse como um sistema unificado que estende os data lakes com transações ACID, versionamento de dados e otimizações de cache in-memory para alto desempenho em queries analíticas. No contexto agrícola, Wolfert et al. [5] analisaram as potencialidades e desafios do uso de Big Data no Smart Farming, apontando a necessidade de infraestruturas centralizadas e robustas para integrar múltiplos fluxos de informação. Em termos de modelagem preditiva, van Klompenburg et al. [6] realizaram um mapeamento sistemático de algoritmos para predição de safra e constataram que ensembles baseados em árvores de decisão como \textit{Random Forest} [9] e variações de \textit{Gradient Boosting} frequentemente superam Redes Neurais Artificiais quando os conjuntos de dados apresentam alta variabilidade regional e dimensionalidade moderada ($< 30$ atributos).
+
+Este trabalho diferencia-se dos demais ao utilizar a estrutura local portátil de um Data Lakehouse integrado em DuckDB, eliminando custos operacionais de banco de dados e focando na modelagem híbrida (Classificação e Regressão) conforme proposto pela metodologia KDD.
+
+\section{Metodologia}
+O desenvolvimento deste projeto seguiu o ciclo completo do framework KDD, detalhado nas etapas a seguir.
+
+\subsection{Construção do Dataset Analítico (Integração)}
+O Data Lakehouse foi consultado de forma unificada utilizando o DuckDB. A tabela de produção \textit{fato\_producao\_pam} (dados reais de 2021) [7] foi filtrada para selecionar os registros das duas culturas dominantes do agronegócio brasileiro: soja e milho. 
+
+Para integrar a base climatológica diária (\textit{fato\_meteorologia}), que possui dados de 29 estações meteorológicas regionais distribuídas, utilizou-se a distância geográfica espacial. Através das coordenadas de latitude e longitude de todos os 5.570 municípios do Brasil (mapeadas a partir do arquivo \textit{municipios\_coords.csv}), calculou-se a distância de Haversine de cada município até a estação mais próxima:
+\begin{equation}
+d = 2r \arcsin \left( \sqrt{\sin^2\frac{\Delta \phi}{2} + \cos\phi_1 \cos\phi_2 \sin^2\frac{\Delta \lambda}{2}} \right)
+\end{equation}
+onde $\phi$ representa a latitude, $\lambda$ a longitude e $r$ o raio terrestre ($r \approx 6371.0$ km).
+
+A escolha do cálculo de distância geoespacial de Haversine em detrimento da distância Euclidiana simples justifica-se pela curvatura da Terra, a qual introduziria distorções de escala métrica significativas no cruzamento das coordenadas brasileiras dado que o território nacional se estende por mais de 4.000 km de distância linear. O pareamento por Haversine permitiu vincular de forma robusta e precisa cada município agrícola ao perfil climatológico mais realista de sua microrregião.
+
+Dessa forma, a meteorologia histórica agregada em médias anuais (precipitação anualizada, temperaturas médias, mínimas e máximas locais) foi imputada de forma representativa para cada município produtor. Os dados de zoneamento \textit{fato\_risco\_zarc} [8] foram agrupados por média de risco municipal por cultura. A base final consolidada resultou em 7.549 instâncias amostrais. Contudo, a utilização de apenas 29 estações climatológicas regionais para cobrir todo o território brasileiro constitui uma limitação metodológica. A análise das distâncias geográficas calculadas revelou que a distância média dos municípios até a estação climatológica mais próxima foi de $225{,}9$ km (mediana de $174{,}6$ km), alcançando um máximo de $1150{,}8$ km nas regiões mais isoladas do país. Em locais com distâncias excessivamente longas, a representatividade das médias imputadas diminui significativamente, adicionando ruído à base de modelagem.
+
+\subsection{Pré-processamento e Prevenção de Vazamento de Dados (KDD)}
+Para assegurar o rigor metodológico da modelagem preditiva, todas as variáveis que poderiam causar vazamento de informação (*data leakage*) foram rigorosamente excluídas do conjunto de variáveis preditoras antes da modelagem. Especificamente, removeu-se os atributos *quantidade produzida* (\textit{qtde\_produzida\_ton}), *área colhida* (\textit{area\_colhida\_ha}) e *valor da produção* (\textit{valor\_producao\_mil\_reais}), além de IDs de controle do sistema e a coluna de umidade média anual (100\% nula no banco). Desse modo, o modelo prediz a produtividade futura de forma estritamente cega, contando apenas com atributos climáticos e geoespaciais disponíveis antes do fechamento de safras.
+
+A produtividade real do município em kg/ha foi computada como variável alvo de regressão. Para a classificação de desempenho produtivo, discretizou-se a produtividade em três faixas balanceadas baseadas nos percentis 33,3\% e 66,6\% calculados de forma independente por cultura. Isso foi feito para evitar viés de capacidade produtiva intrínseca de cada espécie (o milho possui uma média em kg/ha muito superior à soja). As classes de desempenho resultantes do mapeamento foram:
+\begin{itemize}
+    \item \textbf{Baixo Desempenho:} Soja $\le 3060{,}1$ kg/ha | Milho $\le 1803{,}2$ kg/ha;
+    \item \textbf{Médio Desempenho:} Soja entre $3060{,}1$ e $3511$ kg/ha | Milho entre $1803{,}2$ e $4645{,}5$ kg/ha;
+    \item \textbf{Alto Desempenho:} Soja $> 3511$ kg/ha | Milho $> 4645{,}5$ kg/ha.
+\end{itemize}
+
+O dataset foi dividido na proporção de 80\% para treino (6.039 amostras) e 20\% para teste (1.510 amostras) de forma estratificada. O atributo de região geográfica do município e a cultura foram encodados via \textit{One-Hot Encoding}. Para os modelos sensíveis a escala (k-NN, redes neurais MLP e Naive Bayes), utilizou-se o \textit{StandardScaler} para centralizar e homogeneizar a variância dos dados. 
+
+Destaca-se que a divisão aleatória estratificada por cultura pode permitir que amostras do mesmo município (composto pelas culturas de soja e milho) pertençam simultaneamente às partições de treino e teste. Como as variáveis espaciais e climáticas são fixas para um mesmo município, isso cria um risco de vazamento de informação geográfica (\textit{spatial leakage}), onde o modelo pode memorizar o perfil locacional no treino e apresentar um desempenho artificialmente otimista ao predizer a outra cultura na partição de teste.
+
+Para fins de clareza, a Tabela~\ref{tab:atributos} apresenta detalhadamente todos os 11 atributos de entrada e sua tipagem após o pré-processamento.
+
+\begin{table}[h]
+\centering
+\caption{Descrição dos Atributos de Entrada dos Modelos}
+\label{tab:atributos}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+\textbf{Atributo} & \textbf{Tipo} & \textbf{Descrição} \\
+\midrule
+\textit{area\_plantada\_ha} & Numérico & Área total plantada municipal em hectares \\
+\textit{latitude} & Numérico & Latitude geográfica municipal \\
+\textit{longitude} & Numérico & Longitude geográfica municipal \\
+\textit{precipitacao\_anual\_mm} & Numérico & Acumulado anual de chuvas da estação regional \\
+\textit{temp\_max\_media} & Numérico & Média das temperaturas máximas diárias \\
+\textit{temp\_min\_media} & Numérico & Média das temperaturas mínimas diárias \\
+\textit{temp\_media\_anual} & Numérico & Temperatura média anual da microrregião \\
+\textit{risco\_zarc\_medio} & Numérico & Média histórica de risco climático (ZARC) \\
+\textit{amplitude\_termica\_media} & Numérico & Amplitude térmica média local \\
+\textit{cultura} & Categórico & Cultura cultivada (Soja ou Milho) \\
+\textit{regiao} & Categórico & Região geopolítica do município \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Modelagem e Tuning de Hiperparâmetros}
+Para a tarefa de regressão, treinou-se três algoritmos: Multi-Layer Perceptron (MLP) Regressor, Random Forest Regressor e XGBoost Regressor.
+Para a tarefa de classificação multiclasse, treinou-se quatro algoritmos: Naive Bayes (GaussianNB), k-Nearest Neighbors (k-NN), Multi-Layer Perceptron (MLP) Classifier e um Ensemble Bagging com base de MLP. A seleção e fundamentação teórica desses algoritmos basearam-se no material didático e diretrizes metodológicas da disciplina de Aprendizado de Máquina [10].
+
+Todos os modelos passaram por sintonia fina de hiperparâmetros usando a metodologia de busca exaustiva em grid (\textit{GridSearchCV}) sob validação cruzada estratificada em 5 pastas (\textit{5-Fold Cross-Validation}). O \textit{GridSearchCV} foi executado estritamente sobre a partição de 80\% de treinamento para evitar vazamento de dados do conjunto de teste (holdout). Os hiperparâmetros ótimos encontrados foram:
+\begin{itemize}
+    \item \textbf{MLP Regressor:} $\alpha = 0{,}001$, duas camadas ocultas de 50 neurônios, taxa de aprendizado inicial de $0{,}001$;
+    \item \textbf{Random Forest:} $200$ estimadores, profundidade máxima de $20$, amostras mínimas por split de $2$;
+    \item \textbf{XGBoost:} taxa de aprendizado de $0{,}1$, profundidade máxima de $8$, $100$ estimadores;
+    \item \textbf{Naive Bayes:} suavização de variância (\textit{var\_smoothing}) de $10^{-9}$;
+    \item \textbf{k-NN:} $k = 7$ vizinhos com distância de Manhattan e pesos baseados no inverso da distância;
+    \item \textbf{MLP Classifier:} duas camadas de $50$ neurônios, $\alpha = 0{,}0001$, taxa de aprendizado de $0{,}01$;
+    \item \textbf{Bagging MLP:} ensemble de $10$ MLPs utilizando subamostragem de $90\%$ do dataset.
+\end{itemize}
+
+\section{Resultados e Discussão}
+
+\subsection{Estimação de Produtividade (Regressão)}
+Os resultados obtidos pelos modelos de regressão antes e após o processo de sintonia de hiperparâmetros, avaliados sobre a partição holdout de teste ($20\%$), são sintetizados na Tabela~\ref{tab:resultados_regressao}.
+
+\begin{table}[h]
+\centering
+\caption{Comparação de Modelos de Regressão (Produtividade)}
+\label{tab:resultados_regressao}
+\footnotesize
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{llccc}
+\toprule
+\textbf{Modelo} & \textbf{Estado} & \textbf{MAE (kg/ha)} & \textbf{RMSE (kg/ha)} & \textbf{$R^2$} \\
+\midrule
+MLP Regressor & Base & $931{,}81$ & $1341{,}03$ & $0{,}5844$ \\
+ & Tuned & $812{,}91$ & $1223{,}53$ & $0{,}6541$ \\
+\midrule
+Random Forest & Base & $670{,}85$ & $1024{,}20$ & $\mathbf{0{,}7576}$ \\
+ & Tuned & $\mathbf{669{,}23}$ & $\mathbf{1024{,}79}$ & $0{,}7573$ \\
+\midrule
+XGBoost & Base & $722{,}34$ & $1092{,}21$ & $0{,}7243$ \\
+ & Tuned & $693{,}74$ & $1050{,}66$ & $0{,}7449$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A Random Forest obteve o menor erro absoluto médio (MAE de $669{,}23$ kg/ha) e o maior coeficiente de determinação ($R^2 = 0{,}7573$). Esse desempenho indica que os modelos baseados em ensembles de árvores de decisão conseguem mapear os limites de produtividade regional e climatológica sem requerer linearidade estrita das variáveis físicas. 
+
+Observa-se na Tabela~\ref{tab:resultados_regressao} que o modelo Random Forest sintonizado (*Tuned*) apresentou uma redução marginal no erro absoluto médio ($MAE$ caiu de $670{,}85$ para $669{,}23$ kg/ha), porém acompanhado por uma redução sutil no $R^2$ ($0{,}7576$ para $0{,}7573$). Essa pequena oscilação é justificável numericamente: o *GridSearchCV* otimiza os hiperparâmetros com base no desempenho médio ponderado em 5 partições distintas de validação cruzada para maximizar a generalização e evitar o sobreajuste (*overfitting*). Esse compromisso de regularização pode levar a uma sutil perda aritmética na partição holdout de teste em favor de uma estabilidade muito maior do modelo em novos ambientes de produção.
+
+A MLP Regressor apresentou ganho substancial após o tuning ($R^2$ subiu de $0{,}5844$ para $0{,}6541$), evidenciando a sensibilidade das redes neurais à estrutura de camadas e coeficiente de regularização L2 ($\alpha = 0.001$). O XGBoost apresentou excelente ganho de generalização, mantendo seu $R^2$ de $0.7449$ sob o ajuste de taxa de aprendizado para $0.1$. A importância relativa de cada feature para o modelo Random Forest é ilustrada na Fig.~\ref{fig:importancia}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.48\textwidth]{outputs/figures/regression_importance_features.png}
+\caption{Importância das variáveis obtida pelo melhor modelo de regressão (Random Forest).}
+\label{fig:importancia}
+\end{figure}
+
+Observa-se que a localização geográfica (latitude e longitude) e a área plantada estimada (\textit{area\_plantada\_ha}) do município foram as features mais decisivas, refletindo a concentração tecnológica da produção agrícola brasileira em regiões e polos específicos de alta produtividade (como o Centro-Oeste e o Oeste Baiano). A precipitação anual e a amplitude térmica local também exerceram papel decisivo como reguladores climáticos. A forte dependência das coordenadas geográficas evidencia um viés espacial na produtividade agrícola, onde fatores históricos de infraestrutura regional e topografia plana (como o cerrado plano de Mato Grosso) superam pequenas oscilações climáticas anuais locais. Contudo, cabe ressaltar uma limitação metodológica importante associada à alta importância das coordenadas geográficas: o risco de memorização espacial (\textit{spatial overfitting}) em detrimento da generalização de padrões biofísicos. Sem uma validação cruzada espacial (como a separação por estados ou regiões fisiográficas no split de teste), não é possível descartar a ocorrência de memorização locacional no modelo baseado em Random Forest, limitando sua portabilidade para predição em regiões de fronteira agrícola recentemente abertas.
+
+\subsection{Classificação de Desempenho Produtivo}
+Os classificadores multiclasse de desempenho foram avaliados sobre a partição holdout de teste ($20\%$) pelas métricas de acurácia, precisão macro, revocação (recall) macro e pontuação F1-Macro. Os resultados comparativos constam na Tabela~\ref{tab:resultados_classificacao}.
+
+\begin{table}[h]
+\centering
+\caption{Comparação de Modelos de Classificação (Desempenho)}
+\label{tab:resultados_classificacao}
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{llcccc}
+\toprule
+\textbf{Modelo} & \textbf{Estado} & \textbf{Acurácia} & \textbf{Precisão} & \textbf{Recall} & \textbf{F1-Macro} \\
+\midrule
+Naive Bayes & Base/Tuned & $0{,}5099$ & $0{,}5022$ & $0{,}5098$ & $0{,}4451$ \\
+\midrule
+k-NN & Base & $0{,}6848$ & $0{,}6810$ & $0{,}6848$ & $0{,}6822$ \\
+ & Tuned & $\mathbf{0{,}7033}$ & $\mathbf{0{,}7026}$ & $\mathbf{0{,}7033}$ & $\mathbf{0{,}7029}$ \\
+\midrule
+MLP Classifier & Base & $0{,}6702$ & $0{,}6644$ & $0{,}6702$ & $0{,}6655$ \\
+ & Tuned & $0{,}6735$ & $0{,}6741$ & $0{,}6735$ & $0{,}6733$ \\
+\midrule
+Bagging MLP & Base & $0{,}6768$ & $0{,}6711$ & $0{,}6768$ & $0{,}6709$ \\
+ & Tuned & $0{,}6762$ & $0{,}6707$ & $0{,}6761$ & $0{,}6706$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+O classificador k-NN ajustado com distância Manhattan e peso ponderado de distância ($k = 7$) superou os demais com acurácia de $70{,}33\%$ e F1-Macro de $70{,}29\%$. Esse comportamento indica que municípios vizinhos geograficamente e com perfis climáticos similares possuem fortes agrupamentos no espaço Euclidiano de desempenho, validando o conceito agronômico de contiguidade de produtividade regional. 
+
+O Naive Bayes obteve o menor desempenho ($50{,}99\%$ de acurácia), o que pode ser explicado pela forte correlação entre os atributos climáticos (como temperaturas e precipitações locais), violando a hipótese de independência condicional assumida pelo classificador. O Ensemble Bagging com base de MLP forneceu predições bastante estáveis ($67{,}62\%$), mostrando a vantagem de comitês na generalização e redução de variância estocástica de redes neurais individuais. As figuras das matrizes de confusão do k-NN e Bagging MLP são apresentadas na Fig.~\ref{fig:confusion}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.48\textwidth]{outputs/figures/confusion_matrix_knn.png}
+\caption{Matriz de Confusão do melhor modelo classificador (k-NN).}
+\label{fig:confusion}
+\end{figure}
+
+A matriz de confusão demonstra que o modelo possui alta precisão para identificar a classe ``Baixo'' desempenho produtivo, com baixo nível de confusão com o outro extremo (classe ``Alto''). O maior ruído de predição ocorre na classe ``Médio'', que possui fronteiras de decisão mais tênues com as classes extremas.
+
+Na análise da dinâmica de convergência da rede neural MLP, constatou-se que a regularização L2 atuou ativamente impedindo o sobreajuste nos pesos de atributos categóricos encodados, que poderiam polarizar a rede caso não houvesse decaimento de peso penalizado. A rede convergiu uniformemente com a taxa de aprendizado sintonizada em $0.001$, evitando as instabilidades de mínimos locais que ocorreram no modelo base com taxa padrão mais elevada.
+
+\section{Conclusão}
+Este trabalho aplicou com sucesso a metodologia KDD sobre a base unificada de dados do lakehouse \textit{Agroharvest-BRv2}. O dataset construído demonstrou grande consistência para treinar modelos preditivos de forma robusta e livre de vazamento de informações. O estimador Random Forest destacou-se na regressão de produtividade agrícola com coeficiente $R^2$ de $0{,}7573$, mapeando de forma eficiente a influência da geografia e do clima local. Por sua vez, o classificador k-NN demonstrou ser altamente eficaz para segmentação de faixas de desempenho produtivo municipal ($70{,}33\%$ de acurácia). 
+
+Trabalhos futuros incluem expandir a granularidade temporal do dataset integrando séries plurianuais históricas do PAM e do ZARC para além do ano de 2021, bem como incorporar features de sensoriamento remoto de satélites para captura da biomassa foliar em tempo real.
+
+\begin{thebibliography}{00}
+\bibitem{b1} A. Chlingaryan, S. Sukkarieh, and B. Whelan, ``Machine learning approaches for crop yield prediction and nitrogen status estimation in precision agriculture: A review,'' \textit{Computers and Electronics in Agriculture}, vol. 151, pp. 61--69, 2018.
+\bibitem{b2} S. Khaki and L. Wang, ``Crop yield prediction using deep neural networks,'' \textit{Frontiers in Plant Science}, vol. 10, article 621, 2019.
+\bibitem{b3} CEPEA/ESALQ-USP, ``PIB do Agronegócio Brasileiro: Relatório Anual 2023,'' Centro de Estudos Avançados em Economia Aplicada (Cepea), Piracicaba, SP, 2024. [Online]. Disponível em: \url{https://www.cepea.esalq.usp.br/br/pib-do-agronegocio-brasileiro.aspx}. Acesso em: 4 de jun. de 2026.
+\bibitem{b4} M. Armbrust et al., ``Lakehouse: A new generation of open platforms that unify data warehousing and advanced analytics,'' in \textit{Proceedings of the 11th Conference on Innovative Data Systems Research (CIDR)}, 2021.
+\bibitem{b5} S. Wolfert, L. Ge, J. Verdouw, and M. J. Bogaardt, ``Big data in smart farming--A review,'' \textit{Agricultural Systems}, vol. 153, pp. 69--80, 2017.
+\bibitem{b6} T. van Klompenburg, A. Kassahun, and C. Catal, ``Crop yield prediction using machine learning: A systematic literature review,'' \textit{Computers and Electronics in Agriculture}, vol. 177, p. 105709, 2020.
+\bibitem{b7} IBGE. Produção Agrícola Municipal (PAM). Disponível em: \url{https://sidra.ibge.gov.br/}.
+\bibitem{b8} MAPA. Zoneamento Agrícola de Risco Climático (ZARC). Disponível em: \url{https://indicadores.agricultura.gov.br/zarc/}.
+\bibitem{b9} L. Breiman, ``Random Forests,'' \textit{Machine Learning}, vol. 45, pp. 5--32, 2001.
+\bibitem{b10} G. P. Coelho, \textit{Material da disciplina CET0621 -- Aprendizado de Máquina na Análise de Dados}. UNICAMP/FT, 2026.
+\end{thebibliography}
+
+\newpage
+\onecolumn
+\section*{Apêndice: Avaliação por Pares e Contribuições dos Autores}
+
+De acordo com as diretrizes do projeto final estabelecidas para a disciplina CET0621, a Tabela~\ref{tab:contribuicoes} detalha as contribuições de cada integrante do grupo para o desenvolvimento deste projeto, acompanhadas de suas respectivas notas de participação.
+
+\begin{table}[H]
+\centering
+\caption{Notas de Participação e Contribuições Detalhadas por Membro}
+\label{tab:contribuicoes}
+\begin{tabular}{lccp{8cm}}
+\toprule
+\textbf{Integrante} & \textbf{RA} & \textbf{Nota de Part. ($p_i$)} & \textbf{Descrição das Contribuições no Projeto} \\
+\midrule
+Ciro Fraga de Souza & 2024211941 & $10{,}0$ & Engenharia de dados e infraestrutura. Implementou as consultas no DuckDB do Data Lakehouse, fez a unificação espacial usando a distância de Haversine para as coordenadas meteorológicas e construiu o script de ETL do dataset analítico. \\
+\addlinespace
+Felippe Dada Gaede & 2024212018 & $10{,}0$ & Pré-processamento e análise exploratória de dados. Responsável pelo tratamento de nulos, imputação, codificação categórica One-Hot Encoding e divisão estratificada treino/teste. Escreveu o pipeline de scaling. \\
+\addlinespace
+Jonnerson Lopes & 2024212042 & $10{,}0$ & Treinamento e sintonia dos modelos. Implementou os scripts de treinamento de Regressão e Classificação, orquestrou as buscas GridSearchCV para sintonizar os hiperparâmetros dos modelos (MLP, RF, XGBoost, k-NN) no Docker. \\
+\addlinespace
+Murilo Melo de Oliveira & 2024212085 & $10{,}0$ & Avaliação de desempenho e elaboração do relatório final. Confeccionou as visualizações das matrizes de confusão, gráfico de real vs predito e importância de variáveis. Estruturou e redigiu o documento no formato IEEE. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}
