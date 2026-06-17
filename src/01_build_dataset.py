@@ -80,6 +80,43 @@ def main():
         GROUP BY id_municipio, id_cultura
     """).fetchdf()
 
+    df_ndvi = conn.execute("""
+        SELECT id_municipio, CAST(ano AS INTEGER) as ano, ndvi_max_safra, ndvi_mean_safra
+        FROM fato_ndvi_satelite
+    """).fetchdf()
+
+    df_fert_mun = conn.execute("""
+        SELECT id_municipio, COUNT(*) as qtd_fertilizantes_mun
+        FROM fato_fertilizantes_estabelecimentos
+        WHERE id_municipio IS NOT NULL
+        GROUP BY id_municipio
+    """).fetchdf()
+
+    df_fert_uf = conn.execute("""
+        SELECT uf, COUNT(*) as qtd_fertilizantes_uf
+        FROM fato_fertilizantes_estabelecimentos
+        GROUP BY uf
+    """).fetchdf()
+
+    df_preco_mun = conn.execute("""
+        SELECT id_cultura, id_municipio, AVG(valor_kg) as preco_medio_mun
+        FROM fato_precos_conab_mensal
+        WHERE id_municipio IS NOT NULL
+        GROUP BY id_cultura, id_municipio
+    """).fetchdf()
+
+    df_preco_uf = conn.execute("""
+        SELECT id_cultura, uf, AVG(valor_kg) as preco_medio_uf
+        FROM fato_precos_conab_mensal
+        GROUP BY id_cultura, uf
+    """).fetchdf()
+
+    df_preco_nat = conn.execute("""
+        SELECT id_cultura, AVG(valor_kg) as preco_medio_nat
+        FROM fato_precos_conab_mensal
+        GROUP BY id_cultura
+    """).fetchdf()
+
     conn.close()
 
     print(f"  PAM: {len(df_pam)} registros")
@@ -180,6 +217,30 @@ def main():
 
     # Join com ZARC
     df_dataset = pd.merge(df_dataset, df_zarc, on=["id_municipio", "id_cultura"], how="left")
+
+    # Join com NDVI de satélite
+    df_dataset = pd.merge(df_dataset, df_ndvi, on=["id_municipio", "ano"], how="left")
+    ndvi_max_mean = df_dataset["ndvi_max_safra"].mean()
+    ndvi_mean_mean = df_dataset["ndvi_mean_safra"].mean()
+    df_dataset["ndvi_max_safra"] = df_dataset["ndvi_max_safra"].fillna(ndvi_max_mean)
+    df_dataset["ndvi_mean_safra"] = df_dataset["ndvi_mean_safra"].fillna(ndvi_mean_mean)
+
+    # Join com Contagem de Fertilizantes
+    df_dataset = pd.merge(df_dataset, df_fert_mun, on="id_municipio", how="left")
+    df_dataset["qtd_fertilizantes_mun"] = df_dataset["qtd_fertilizantes_mun"].fillna(0)
+    df_dataset = pd.merge(df_dataset, df_fert_uf, on="uf", how="left")
+    df_dataset["qtd_fertilizantes_uf"] = df_dataset["qtd_fertilizantes_uf"].fillna(0)
+
+    # Join com Preços CONAB
+    df_dataset = pd.merge(df_dataset, df_preco_mun, on=["id_cultura", "id_municipio"], how="left")
+    df_dataset = pd.merge(df_dataset, df_preco_uf, on=["id_cultura", "uf"], how="left")
+    df_dataset = pd.merge(df_dataset, df_preco_nat, on="id_cultura", how="left")
+    
+    df_dataset["preco_medio_ano_anterior"] = df_dataset["preco_medio_mun"] \
+        .fillna(df_dataset["preco_medio_uf"]) \
+        .fillna(df_dataset["preco_medio_nat"])
+        
+    df_dataset = df_dataset.drop(columns=["preco_medio_mun", "preco_medio_uf", "preco_medio_nat"])
 
     # 7. Engenharia de Features e Limpeza
     print("Realizando engenharia de features...")
